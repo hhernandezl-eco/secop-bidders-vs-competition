@@ -1,0 +1,14 @@
+data/raw/*
+!data/raw/README.md
+!data/raw/.gitkeep
+data/interim/*
+data/processed/*
+!data/*/.gitkeep
+output/**/*
+!output/**/.gitkeep
+__pycache__/
+*.pyc
+*.parquet
+*.csv
+*.xlsx
+.duckdb*
