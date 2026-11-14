@@ -12,3 +12,6 @@ __pycache__/
 *.csv
 *.xlsx
 .duckdb*
+
+# Nunca publicar PDFs (articulo, suplemento, figuras, briefing)
+*.pdf

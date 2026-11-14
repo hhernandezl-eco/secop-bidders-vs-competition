@@ -43,7 +43,7 @@ def main() -> None:
     df["orden"] = raw["Orden"].str.strip()            # A = national, B = capital-city entity, C = other territorial
     df["modalidad_marco"] = raw["Modalidad"].str.strip()
     df["estrato"] = pd.to_numeric(raw["estrato"], errors="coerce")
-    df["en_muestra"] = raw["en_muestra"].str.upper().eq("TRUE").astype(int)
+    df["en_muestra_gandour"] = raw["en_muestra"].str.upper().eq("TRUE").astype(int)
     df["objeto"] = raw["Objeto"].str.strip()
 
     # money (COP, nominal)

@@ -1,48 +1,64 @@
-# SECOP participation, price pressure and contract renegotiation
+# More bidders, not more competition: participation, price pressure and contract renegotiation in Colombian public works
 
-Replication code for *More bidders, not more competition: participation, price pressure and contract
-renegotiation in Colombian public works* (Albano, Calderón-Ramírez, Hernández-Lasso, Ortiz).
+Replication code for the paper by Gian Luigi Albano, Ana Cristina Calderón-Ramírez, Hernando Hernández-Lasso and Carlos Ortiz.
 
-The repository contains everything needed to go from the raw SECOP files to every table, figure and in-text number
-of the paper. Data are not included (see `data/raw/README.md`).
+The paper shows that the number of bidders is a weak proxy for competition in Colombian public works (SECOP II, 2018–2024): doubling the number of bidders lowers the awarded price substantially under lowest-price selection, but very little when proposals are scored, and in scored regimes it goes with more contract additions, so the net saving for the buyer is indistinguishable from zero.
 
-## Quick start
+**Everything is regenerated from the raw open data with one command.**
 
-```bash
-python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-# put the raw files in data/raw/  (or: export SECOP_RAW_DIR=/path/to/folder)
-python code/run_all.py                # full pipeline (~25 min, 8 GB RAM is enough)
-python code/run_all.py --force        # also redo the raw CSV extraction
-python code/run_all.py --from 06      # restart from a given step
 ```
+python code/run_all.py            # data -> models -> tables and figures -> paper
+python code/run_all.py --force    # also redo the extraction of the two ~8 GB CSV files (~6 min)
+python code/run_all.py --from 06  # restart from a given step (06 = main models)
+python code/check_manuscript.py   # check cross-references, figures, tables, citations and number macros
+```
+
+## Repository contents
+
+| Path | Content |
+|---|---|
+| `code/` | Numbered pipeline `00`–`21` plus utilities (`config.py`, `utils.py`, `models.py`, `tex.py`) |
+| `references/` | `build_bib.py`: checks every DOI against Crossref and builds the `.bib` file |
+| `data/raw/README.md` | Description of the raw inputs and where to obtain them (data are not distributed) |
+| `requirements.txt` | Python dependencies |
+
+The code writes its outputs to `data/interim/`, `data/processed/`, `output/` and, for the LaTeX tables, figures and number macros of the paper, to `paper/`. None of these are tracked.
+
+## Input data (not included)
+
+* `SECOP_II_-_Contratos_Electrónicos_20250820.csv` (~8 GB) and `SECOP_II_-_Procesos_de_Contratación_20250820.csv` (~8 GB): open data from datos.gov.co, snapshot of 20 August 2025.
+* `marco1.xlsx`: sampling frame of transport-infrastructure contracts (SECOP I and II) built with the code of Gandour Consultores (2025); available from the authors on request.
+* To move the project, set the environment variable `SECOP_RAW_DIR` to the folder that contains these files. See `data/raw/README.md`.
 
 ## Pipeline
 
-| Step | Script | Purpose |
+| Step | Script | What it does |
 |---|---|---|
-| 01 | `01_extract_secop2.py` | Raw CSV to Parquet (selected columns; money and dates parsed) |
-| 02 | `02_build_frame.py` | Clean the contract frame |
-| 03 | `03_build_secop2_works.py` | Link SECOP II contracts to processes; derive additions (current value minus awarded value) |
-| 04 | `04_build_features.py` | Firm, entity and market variables, measured before each focal contract |
-| 05 | `05_assemble_analysis.py` | Analysis data set, outcomes, sample flags |
-| 06 | `06_participation.py` | Main results by award regime |
-| 07 | `07_firms.py` | Bidder capabilities and out-of-sample predictive validity |
-| 08 | `08_robustness.py` | Robustness, wild-cluster bootstrap, broad universe, placebo, IV, mediation |
+| 01 | `01_extract_secop2.py` | Raw CSV to Parquet (used columns only; cleans amounts and dates) |
+| 02 | `02_build_frame.py` | Cleans the sampling frame |
+| 03 | `03_build_secop2_works.py` | Links SECOP II contracts to their selection process and **derives additions** (current value minus awarded value) |
+| 04 | `04_build_features.py` | Experience, history (completed contracts only, before signing), entity prior-addition rate, market instruments and bidding-window calendar |
+| 05 | `05_assemble_analysis.py` | Final analysis data set, outcomes and sample flags |
+| 06 | `06_participation.py` | Main results: participation vs. price, additions and net saving, by award regime |
+| 07 | `07_firms.py` | Bidder capabilities and out-of-sample predictive validity (AUC) |
+| 08 | `08_robustness.py` | Robustness, cluster bootstrap, broad universe, placebo, Oster bounds, IV (Anderson–Rubin), entity-order splits |
 | 09 | `09_descriptives_figures.py` | Descriptive tables and figures |
-| 11 | `11_data_dictionary.py` | Data dictionary (`docs/data_dictionary.md`) |
+| 00 | `00_audit_working_paper.py` | Reproduces and audits the descriptive table of the earlier working paper |
+| 11 | `11_data_dictionary.py` | Data dictionary |
+| 12 | `12_dt_event_study.py` | Staggered adoption of the standard bidding documents (descriptive event study) |
+| 13 | `13_broad_primary.py` | Broad works universe: main results, fixed effects, hurdle model, commitment regime |
+| 14 | `14_censoring.py` | Selection into closed contracts, open-contract bounds |
+| 15 | `15_capabilities_robust.py` | Capabilities by platform and leave-one-entity-out track record |
+| 16 | `16_sample_cascade.py` | Construction of the broad universe and split by scope of the standard documents |
+| 17 | `17_threshold_design.py` | Same-size contracts under different award rules (28–100 minimum wages) and check on discretionary choice of modality |
+| 18 | `18_additions_validation.py` | Gap in additions between SECOP I and SECOP II |
+| 19 | `19_theory_check.py` | Entry model with a type-dependent probability of winning: numerical check of the comparative statics |
+| 20 | `20_additions_audit.py` | Validation of derived additions: legal ceiling, payments, censoring, audit sample |
+| 21 | `21_modifications_events.py` | Cross-tabulates the derived increase with the platform record of modification events (open dataset "SECOP II - Adiciones", `cb9c-h8sn`; queries the public datos.gov.co API the first time, cached afterwards, `--refresh` repeats the query) |
 
-Shared helpers: `config.py` (paths, seeds, constants), `utils.py`, `models.py`, `tex.py`.
+## Design principles
 
-## Outputs
-
-* `data/interim/`, `data/processed/`: Parquet extracts and the analysis data set (`analysis_contracts.parquet`).
-* `output/tables/*.csv`: results behind each table. `output/logs/`: log of each step.
-* `output/latex/tables/*.tex`, `output/figures/*.pdf`: tables and figures ready to include in LaTeX.
-* `output/numbers.json`, `output/latex/numbers.tex`: every number quoted in the text, as LaTeX macros.
-
-## Notes
-
-* All random procedures use the seed in `code/config.py`.
-* Tested with Python 3.9 on Windows 11 with 8 GB of RAM; paths are OS-independent.
-* The SECOP II contract file does not report the value of additions; the code derives it from awarded and current values (`03`).
+1. **No number in the text is typed by hand**: the paper uses `\R…` macros from `paper/numbers.tex`, generated by the code.
+2. **Every bibliographic reference is verified against Crossref** (`references/build_bib.py`); references that cannot be verified are excluded.
+3. **Every figure, table, section, appendix and equation is cross-referenced with `\cref`**; `check_manuscript.py` fails if any is left uncited.
+4. Seeds are fixed in `code/config.py`. Reference machine: Windows 11, 8 GB RAM, Python 3.9.

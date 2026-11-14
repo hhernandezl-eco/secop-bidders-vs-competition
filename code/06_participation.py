@@ -13,7 +13,7 @@ Outcomes (percentage points unless stated)
 Main regressor: ln(number of unique bidders). A coefficient b means: +b pp for a one-log-point increase;
 we report effects per *doubling* of bidders (b x ln 2).
 
-Outputs: output/latex/tables/tab_main.tex, tab_decomp.tex, tab_hurdle.tex, tab_enforce.tex, output/numbers.json,
+Outputs: paper/tables/tab_main.tex, tab_decomp.tex, tab_hurdle.tex, tab_enforce.tex, paper/numbers.json,
          output/tables/*.csv
 """
 from __future__ import annotations
@@ -209,6 +209,26 @@ def main() -> None:
              "\\cref{tab:main}. Standard errors clustered by entity. * $p<0.10$, ** $p<0.05$, *** $p<0.01$.")
     write_table("tab_enforce", "\n".join(body), "", "tab:enforce", notes, "lccc", header)
 
+    # ---- non-linear check of the interaction (Ai & Norton): probit, average effect of doubling bidders at +-1 SD of the moderator ----
+    from models import design
+    for rg in ["scored", "pooled"]:
+        sub = get_sub(dd, rg)
+        X = design(sub, ["ln_bidders", "soft_z", "lnb_soft"] + CONTROLS_PART, fe_for(rg))
+        y1 = sub["add_any"].astype(float)
+        pr = sm.Probit(y1, X).fit(disp=0, cov_type="cluster", cov_kwds={"groups": pd.factorize(sub["ent_g"])[0]}, maxiter=200)
+        put_number(f"probit int {rg}", pr.params["lnb_soft"], ".2")
+        put_number(f"probit intp {rg}", pr.pvalues["lnb_soft"], ".3")
+        for zlab, z in [("low", -1.0), ("high", 1.0)]:
+            X0, X1 = X.copy(), X.copy()
+            X0["soft_z"], X1["soft_z"] = z, z
+            X0["lnb_soft"] = X0["ln_bidders"] * z
+            X1["ln_bidders"] = X0["ln_bidders"] + LN2
+            X1["lnb_soft"] = X1["ln_bidders"] * z
+            put_number(f"probit ame {rg} {zlab}", 100 * float((pr.predict(X1) - pr.predict(X0)).mean()), ".1")
+        put_number(f"base addrate {rg}", 100 * float(y1.mean()), ".0")
+    hi_soft = dd.loc[dd["soft_z"] > 1, "add_any"].mean() * 100
+    put_number("addrate high soft", hi_soft, ".0")
+    put_number("addrate low soft", dd.loc[dd["soft_z"] < -1, "add_any"].mean() * 100, ".0")
     pd.DataFrame(rows_csv).to_csv(TABLES / "main_participation.csv", index=False)
     write_numbers_tex()
     print(pd.DataFrame(rows_csv).round(4).to_string())

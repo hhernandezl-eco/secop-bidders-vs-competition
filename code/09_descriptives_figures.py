@@ -1,6 +1,6 @@
 """STEP 09 - Descriptive tables and figures.
 
-Figures (PDF, vector) -> output/figures ; tables -> output/latex/tables ; numbers -> output/numbers.json
+Figures (PDF, vector) -> paper/figures ; tables -> paper/tables ; numbers -> paper/numbers.json
   fig_cap          additions bunch at the legal ceiling (+50 %)
   fig_bidders      distribution of the number of bidders by award regime
   fig_binned       outcomes against participation (binned means) by regime
@@ -127,6 +127,32 @@ def fig_decomp() -> None:
     plt.close(fig)
 
 
+def fig_decomp2() -> None:
+    """Two panels: broad works universe (primary) and transport frame (focal case)."""
+    panels = [("A. Broad works universe", "decomposition_broad.csv"), ("B. Transport frame", "decomposition.csv")]
+    order = ["minima", "menor", "licitacion", "scored"]
+    names = {"minima": "Mínima\ncuantía", "menor": "Menor\ncuantía", "licitacion": "Licitación\npública", "scored": "Scored\n(menor + lic.)"}
+    fig, axes = plt.subplots(1, 2, figsize=(9.2, 3.3), sharey=True)
+    w = 0.26
+    for ax, (title, fname) in zip(axes, panels):
+        D = pd.read_csv(TABLES / fname).set_index("regime").loc[order]
+        xs = np.arange(len(D))
+        for k, (col, lab, c) in enumerate([("rebate", "Price rebate", "#0072B2"), ("add", "Erosion by additions", "#D55E00"), ("net", "Net saving", "#222222")]):
+            y = D[col].values
+            lo, hi = D[col + "_lo"].values, D[col + "_hi"].values
+            ax.bar(xs + (k - 1) * w, y, w, color=c, label=lab, alpha=0.9)
+            ax.errorbar(xs + (k - 1) * w, y, yerr=[np.maximum(y - lo, 0), np.maximum(hi - y, 0)], fmt="none", ecolor="black", lw=0.7, capsize=1.5)
+        ax.axhline(0, color="black", lw=0.6)
+        ax.set_xticks(xs)
+        ax.set_xticklabels([names[r] for r in D.index], fontsize=8)
+        ax.set_title(title, fontsize=9, loc="left")
+    axes[0].set_ylabel("Effect of doubling bidders\n(pp of reference budget)")
+    axes[0].legend(loc="upper right", fontsize=7.5)
+    fig.tight_layout()
+    fig.savefig(PAPER_FIGURES / "fig_decomp.pdf")
+    plt.close(fig)
+
+
 def fig_auc() -> None:
     A = pd.read_csv(TABLES / "firms_auc.csv")
     fig, ax = plt.subplots(figsize=(5.4, 2.8))
@@ -135,7 +161,7 @@ def fig_auc() -> None:
     ax.axvline(A.auc.iloc[0], color="grey", ls=":", lw=0.8)
     ax.set_yticks(y)
     ax.set_yticklabels(A.model)
-    ax.set_xlabel("Out-of-sample AUC (2022\u20132024 contracts)")
+    ax.set_xlabel("Out-of-sample AUC (2021\u20132022 contracts)")
     fig.savefig(PAPER_FIGURES / "fig_auc.pdf")
     plt.close(fig)
 
@@ -199,8 +225,8 @@ def table_flow() -> None:
             put_number("n part sample", r["n"], ",d")
         if r["step"].startswith("Contracts in the sampling frame"):
             put_number("n frame", r["n"], ",d")
-    write_table("tab_flow", "\n".join(body), "", "tab:flow",
-                "Sample construction. The frame is a stratified sampling frame of transport-infrastructure contracts. "
+    write_table("tab_flow_frame", "\n".join(body), "", "tab:flowframe",
+                "Sample construction. The frame is the stratified sampling frame of transport-infrastructure contracts compiled by Gandour Consultores (2025). "
                 "SECOP~II contracts are linked to their selection process through the portfolio identifier; contracts whose process has several award rows (lots) are excluded because the lot-to-contract mapping is ambiguous.",
                 "lr", "Step & Contracts", size="\\small")
 
@@ -216,7 +242,7 @@ def main() -> None:
     table_desc(df, d)
     table_flow()
     if (TABLES / "decomposition.csv").exists():
-        fig_decomp()
+        fig_decomp2()
     if (TABLES / "firms_auc.csv").exists():
         fig_auc()
     write_numbers_tex()

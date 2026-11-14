@@ -1,6 +1,6 @@
 """STEP 07 - Supply side: do observable bidder capabilities predict renegotiation?
 
-Design choices:
+Corrects three problems of the working paper's Table 2 (see docs/replication_audit.md):
   * outcome measured on the same footing in SECOP I and II (no SECOP II 'zeros');
   * experience measured strictly before signing; track record uses *completed* contracts only;
   * within-firm estimates exclude the lagged-outcome regressor (mechanical Nickell bias; shown separately);
@@ -8,7 +8,7 @@ Design choices:
 Also reports out-of-sample predictive validity (AUC) with a time split, which is what a screening
 criterion has to deliver.
 
-Outputs: output/latex/tables/tab_firms.tex, tab_auc.tex, output/numbers.json, output/tables/firms_*.csv
+Outputs: paper/tables/tab_firms.tex, tab_auc.tex, paper/numbers.json, output/tables/firms_*.csv
 """
 from __future__ import annotations
 
@@ -148,10 +148,17 @@ def main() -> None:
     r_nick = fit(sub, "add_any_pp", base_x + ["z_vol", "z_spec", "z_hist", "hist_miss"], ["year"], "firm_id")
     put_number("nickell hist", r_nick.params["z_hist"], ".1")
 
-    # --- predictive validity: time split ---------------------------------------------------
+    # left-truncation check: contracts signed in 2021+ have at least three years of observable history
+    late = d[d["year"].astype(int) >= 2021]
+    r_late = fit(late, "add_any_pp", base_x + ["z_vol", "z_spec", "z_hist", "hist_miss"], base_fe)
+    for v in ["z_vol", "z_spec", "z_hist"]:
+        put_number(f"late {v}", r_late.params[v], ".2")
+        put_number(f"latep {v}", r_late.pvalues[v], ".3")
+    put_number("late n", int(r_late.nobs), ",d")
+
+    # --- predictive validity: two time splits (the later years are right-censored, so the main split stops in 2022) ---
     d = d.dropna(subset=["add_any"]).copy()
-    train = d[d["year"].astype(int) <= 2021]
-    test = d[d["year"].astype(int) >= 2022]
+    yr = d["year"].astype(int)
     sets = {
         "Contract controls only": base_x,
         "+ volume of experience": base_x + ["z_vol"],
@@ -160,39 +167,47 @@ def main() -> None:
         "All capabilities": base_x + ["z_vol", "z_spec", "z_hist", "hist_miss"],
     }
     fe_cols = ["orden", "tipo_contrato", "reg"]
-    rng = np.random.default_rng(SEED)
-    res_auc = []
-    for nm, xs in sets.items():
-        Xtr = sm.add_constant(pd.concat([train[xs].astype(float), dummies(train, fe_cols)], axis=1))
-        Xte = sm.add_constant(pd.concat([test[xs].astype(float), dummies(test, fe_cols)], axis=1))
-        Xte = Xte.reindex(columns=Xtr.columns, fill_value=0.0)
-        keep = Xtr.columns[(Xtr.std() > 0) | (Xtr.columns == "const")]
-        m = sm.Logit(train["add_any"].values, Xtr[keep]).fit(disp=0, maxiter=200, method="bfgs")
-        p = m.predict(Xte[keep])
-        y = test["add_any"].values.astype(int)
-        a = auc(y, p.values)
-        bs = []
-        for _ in range(300):
-            ix = rng.integers(0, len(y), len(y))
-            bs.append(auc(y[ix], p.values[ix]))
-        res_auc.append(dict(model=nm, auc=a, lo=np.percentile(bs, 2.5), hi=np.percentile(bs, 97.5), n_train=len(train), n_test=len(test)))
-    A = pd.DataFrame(res_auc)
+
+    def run_split(train, test, seed_shift):
+        rng = np.random.default_rng(SEED + seed_shift)
+        out = []
+        for nm, xs in sets.items():
+            Xtr = sm.add_constant(pd.concat([train[xs].astype(float), dummies(train, fe_cols)], axis=1))
+            Xte = sm.add_constant(pd.concat([test[xs].astype(float), dummies(test, fe_cols)], axis=1))
+            Xte = Xte.reindex(columns=Xtr.columns, fill_value=0.0)
+            keep = Xtr.columns[(Xtr.std() > 0) | (Xtr.columns == "const")]
+            m = sm.Logit(train["add_any"].values, Xtr[keep]).fit(disp=0, maxiter=200, method="bfgs")
+            pr = m.predict(Xte[keep])
+            y = test["add_any"].values.astype(int)
+            bs = []
+            for _ in range(300):
+                ix = rng.integers(0, len(y), len(y))
+                bs.append(auc(y[ix], pr.values[ix]))
+            out.append(dict(model=nm, auc=auc(y, pr.values), lo=np.percentile(bs, 2.5), hi=np.percentile(bs, 97.5),
+                            n_train=len(train), n_test=len(test)))
+        return pd.DataFrame(out)
+
+    train, test = d[yr <= 2020], d[(yr >= 2021) & (yr <= 2022)]
+    A = run_split(train, test, 0)
+    train2, test2 = d[yr <= 2021], d[yr >= 2022]
+    A2 = run_split(train2, test2, 1)
     A.to_csv(TABLES / "firms_auc.csv", index=False)
+    A2.to_csv(TABLES / "firms_auc_alt_split.csv", index=False)
     body = []
-    for _, r in A.iterrows():
-        body.append(f"{r['model']} & {fnum(r['auc'], 3)} & [{fnum(r['lo'], 3)}; {fnum(r['hi'], 3)}] \\\\")
-    put_number("auc base", A.loc[0, "auc"], ".3")
-    put_number("auc all", A.loc[4, "auc"], ".3")
-    put_number("auc spec", A.loc[2, "auc"], ".3")
-    put_number("auc hist", A.loc[3, "auc"], ".3")
-    put_number("auc vol", A.loc[1, "auc"], ".3")
+    for (_, r), (_, r2) in zip(A.iterrows(), A2.iterrows()):
+        body.append(f"{r['model']} & {fnum(r['auc'], 3)} & [{fnum(r['lo'], 3)}; {fnum(r['hi'], 3)}] & "
+                    f"{fnum(r2['auc'], 3)} & [{fnum(r2['lo'], 3)}; {fnum(r2['hi'], 3)}] \\\\")
+    for key, i in [("base", 0), ("vol", 1), ("spec", 2), ("hist", 3), ("all", 4)]:
+        put_number(f"auc {key}", A.loc[i, "auc"], ".3")
+        put_number(f"aucalt {key}", A2.loc[i, "auc"], ".3")
     put_number("auc ntrain", len(train), ",d")
     put_number("auc ntest", len(test), ",d")
-    header = "Model & AUC (test sample) & 95\\% CI"
-    notes = (f"Logit models estimated on contracts signed in 2018--2021 ($N$ = {len(train):,}) and evaluated on contracts signed in 2022--2024 ($N$ = {len(test):,}). "
-             "AUC = probability that a randomly chosen contract with an addition receives a higher predicted risk than one without (0.5 = no discrimination). "
-             "Bootstrap intervals (300 resamples of the test sample). Later contracts may still be in execution, which understates additions in the test sample.")
-    write_table("tab_auc", "\n".join(body), "", "tab:auc", notes, "lcc", header)
+    header = ("& \\multicolumn{2}{c}{Main: train 2018--2020, test 2021--2022} & \\multicolumn{2}{c}{Alternative: train 2018--2021, test 2022--2024} \\\\\n"
+              "\\cmidrule(lr){2-3}\\cmidrule(lr){4-5}\nModel & AUC & 95\\% CI & AUC & 95\\% CI")
+    notes = (f"Logit models estimated on the training years and evaluated on later contracts (main split: $N_{{train}}$ = {len(train):,}, $N_{{test}}$ = {len(test):,}; "
+             f"alternative: {len(train2):,} / {len(test2):,}). The main split stops in 2022 because contracts signed later may still be in execution, which would understate additions in the test sample. "
+             "AUC = probability that a randomly chosen contract with an addition receives a higher predicted risk than one without (0.5 = no discrimination). Bootstrap intervals (300 resamples of the test sample).")
+    write_table("tab_auc", "\n".join(body), "", "tab:auc", notes, "lcccc", header)
     write_numbers_tex()
     print(A.round(4).to_string())
     print(pd.DataFrame(rows).round(4).to_string())

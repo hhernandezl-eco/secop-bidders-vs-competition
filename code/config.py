@@ -1,7 +1,7 @@
 """Central configuration: every script imports its paths from here.
 
-Raw data are NOT part of the repository (the two SECOP II files are ~8 GB each).
-Place them in data/raw/ or point SECOP_RAW_DIR to their folder. If you move the project, only RAW_DIR needs to change
+Raw data are NOT copied into the project (the two SECOP II files are ~8 GB each).
+They are read in place from RAW_DIR. If you move the project, only RAW_DIR needs to change
 (or set the environment variable SECOP_RAW_DIR).
 """
 from __future__ import annotations
@@ -14,15 +14,16 @@ from pathlib import Path
 # Paths
 # --------------------------------------------------------------------------------------
 PROJECT_DIR = Path(__file__).resolve().parents[1]
-RAW_DIR = Path(os.environ.get("SECOP_RAW_DIR", PROJECT_DIR / "data" / "raw"))
+RAW_DIR = Path(os.environ.get("SECOP_RAW_DIR", PROJECT_DIR.parent))
 
+REFERENCE = PROJECT_DIR / "data" / "reference"
 INTERIM = PROJECT_DIR / "data" / "interim"
 PROCESSED = PROJECT_DIR / "data" / "processed"
 TABLES = PROJECT_DIR / "output" / "tables"
 FIGURES = PROJECT_DIR / "output" / "figures"
 LOGS = PROJECT_DIR / "output" / "logs"
-PAPER_TABLES = PROJECT_DIR / "output" / "latex" / "tables"
-PAPER_FIGURES = PROJECT_DIR / "output" / "figures"
+PAPER_TABLES = PROJECT_DIR / "paper" / "tables"
+PAPER_FIGURES = PROJECT_DIR / "paper" / "figures"
 
 for _p in (INTERIM, PROCESSED, TABLES, FIGURES, LOGS, PAPER_TABLES, PAPER_FIGURES):
     _p.mkdir(parents=True, exist_ok=True)
@@ -47,7 +48,7 @@ def raw_processes_csv() -> Path:
 
 
 def raw_frame_xlsx() -> Path:
-    """Sampling frame of transport-infrastructure contracts (SECOP I + II); see data/raw/README.md."""
+    """Sampling frame of infrastructure contracts (SECOP I + II), built with estratos3.R."""
     return _find("marco1.xlsx")
 
 

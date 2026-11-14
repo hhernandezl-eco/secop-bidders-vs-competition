@@ -10,7 +10,7 @@ import pandas as pd
 
 from config import PAPER_TABLES, PROJECT_DIR
 
-NUMBERS_FILE = PROJECT_DIR / "output" / "numbers.json"
+NUMBERS_FILE = PROJECT_DIR / "paper" / "numbers.json"
 
 
 # ------------------------------------------------------------------------------------------
@@ -46,7 +46,7 @@ def write_numbers_tex() -> None:
             v = "\\ensuremath{-}" + v[1:]            # typographic minus in text and math mode
         v = v.replace("%", "\\%")
         lines.append(f"\\newcommand{{\\{name}}}{{{v}}}")
-    (PROJECT_DIR / "output" / "latex" / "numbers.tex").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (PROJECT_DIR / "paper" / "numbers.tex").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 # ------------------------------------------------------------------------------------------
@@ -70,7 +70,7 @@ def coef_cell(b: float, se: float, p: float, d: int = 3) -> tuple[str, str]:
 
 def write_table(name: str, body: str, caption: str, label: str, notes: str, colspec: str,
                 header: str, size: str = "\\small", landscape: bool = False) -> Path:
-    """Write a self-contained tabular (no float) to output/latex/tables/<name>.tex.
+    """Write a self-contained tabular (no float) to paper/tables/<name>.tex.
 
     The float environment, caption and label live in the manuscript so that they can be edited
     without re-running the code; this file contains only the tabular + notes.
@@ -82,8 +82,8 @@ def write_table(name: str, body: str, caption: str, label: str, notes: str, cols
     # they can never run past the margin (threeparttable measures the unscaled width and is not used).
     txt = (f"{size}\n\\setlength{{\\tabcolsep}}{{3.5pt}}\n\\begin{{adjustbox}}{{max width=\\textwidth}}\n"
            f"\\begin{{tabular}}{{{colspec}}}\n\\toprule\n{header}\n\\midrule\n"
-           f"{body}\n\\bottomrule\n\\end{{tabular}}\n\\end{{adjustbox}}\n\\par\\vspace{{4pt}}\n"
-           f"\\parbox{{\\textwidth}}{{\\footnotesize\\emph{{Notes.}} {notes}}}\n")
+           f"{body}\n\\bottomrule\n\\end{{tabular}}\n\\end{{adjustbox}}\n"
+           f"\\tabnote{{{notes}}}\n")
     p = PAPER_TABLES / f"{name}.tex"
     p.write_text(txt, encoding="utf-8")
     return p
