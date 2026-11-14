@@ -142,9 +142,9 @@ def main() -> None:
                 "Same specification as \\cref{tab:enforce}, on the broad works universe. The moderator is the share of the entity's earlier completed works contracts with an addition (at least five), standardised. Coefficients scaled to doubling bidders (pp). Standard errors clustered by entity.",
                 "lccc", "& (1) Rebate & (2) Any addition & (3) Net saving")
     # ---- (d) exact decomposition on the broad universe (pairs-cluster bootstrap by entity) ----
-    from config import SEED
+    from config import N_BOOT_DEC, SEED
     rng = np.random.default_rng(SEED)
-    B_REP = 200
+    B_REP = N_BOOT_DEC
     dec = []
     for g, lab in REG:
         s_ = sub(w, g).reset_index(drop=True)

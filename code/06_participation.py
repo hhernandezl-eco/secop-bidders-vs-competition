@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
-from config import ANALYSIS_PQ, N_BOOT, SEED, TABLES
+from config import ANALYSIS_PQ, N_BOOT, N_BOOT_DEC, SEED, TABLES
 from models import CONTROLS_PART, FE_PART, ols_cluster, prepare_part
 from tex import coef_cell, fint, fnum, put_number, write_numbers_tex, write_table
 
@@ -103,7 +103,7 @@ def main() -> None:
         groups = sub["ent_g"].unique()
         by = {g: sub.index[sub.ent_g == g].values for g in groups}
         draws = []
-        for _ in range(N_BOOT):
+        for _ in range(N_BOOT_DEC):
             samp = rng.choice(groups, size=len(groups), replace=True)
             idx = np.concatenate([by[g] for g in samp])
             bs = sub.loc[idx].reset_index(drop=True)
@@ -139,7 +139,7 @@ def main() -> None:
               "\\multicolumn{2}{c}{Net saving (pp)} \\\\\n\\cmidrule(lr){2-3}\\cmidrule(lr){4-5}\\cmidrule(lr){6-7}\n"
               "& Effect & 95\\% CI & Effect & 95\\% CI & Effect & 95\\% CI")
     notes = ("Effects of doubling the number of bidders, from the specifications in \\cref{tab:main}, expressed in percentage points of the reference "
-             f"budget. Net saving $=$ rebate $-$ erosion by additions. 95\\% intervals from a pairs-cluster bootstrap by contracting entity ({N_BOOT} replications).")
+             f"budget. Net saving $=$ rebate $-$ erosion by additions. 95\\% intervals from a pairs-cluster bootstrap by contracting entity ({N_BOOT_DEC} replications).")
     write_table("tab_decomp", "\n".join(body), "", "tab:decomp", notes, "lcccccc", header)
 
     # ---------------- Table: hurdle model (two-part) for renegotiation -----------------------

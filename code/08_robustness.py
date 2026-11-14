@@ -314,10 +314,10 @@ def iv_ar(df: pd.DataFrame) -> None:
 # ---------------------------------------------------------------------------------------------
 
 
-def scale_check(df: pd.DataFrame) -> None:
+def _scale_panel(d: pd.DataFrame, tag: str):
     """Is the regime difference an artefact of project scale? Flexible ln(B) by regime, interacted with ln(N).
     Slopes are average marginal effects over the observed distribution of budgets within each regime (not evaluated at ln B = 0)."""
-    d = prepare_part(df).copy()
+    d = d.copy()
     d["is_min"] = (d.regime == "minima").astype(float)
     d["lnb_min"] = d["ln_bidders"] * d["is_min"]
     d["lnb_sc"] = d["ln_bidders"] * (1 - d["is_min"])
@@ -332,14 +332,14 @@ def scale_check(df: pd.DataFrame) -> None:
         d[f"c{k}_Nm"] = d[f"c{k}"] * d["lnb_min"]
         d[f"c{k}_Ns"] = d[f"c{k}"] * d["lnb_sc"]
     cs = d[cs_mask]
-    put_number("support n", len(cs), ",d")
-    put_number("support minima", int((cs.regime == "minima").sum()), ",d")
-    put_number("support scored", int((cs.regime != "minima").sum()), ",d")
+    put_number(f"support{tag} n", len(cs), ",d")
+    put_number(f"support{tag} minima", int((cs.regime == "minima").sum()), ",d")
+    put_number(f"support{tag} scored", int((cs.regime != "minima").sum()), ",d")
     base_ctrl = ["ln_plazo", "plazo_miss"]
-    specs = [("(1) Linear $\ln B$ (baseline)", d, ["ln_base"], 0),
-             ("(2) Cubic $\ln B$ and $\ln B\times\ln N$, by regime", d,
+    specs = [("(1) Linear $\\ln B$ (baseline)", d, ["ln_base"], 0),
+             ("(2) Cubic $\\ln B$ and $\\ln B\\times\\ln N$, by regime", d,
               ["c1", "c2", "c3", "c1_min", "c2_min", "c3_min", "c1_Nm", "c2_Nm", "c3_Nm", "c1_Ns", "c2_Ns", "c3_Ns"], 3),
-             ("(3) Linear $\ln B$ and $\ln B\times\ln N$, by regime, common support", cs,
+             ("(3) Linear $\\ln B$ and $\\ln B\\times\\ln N$, by regime, common support", cs,
               ["c1", "c1_min", "c1_Nm", "c1_Ns"], 1)]
     body, rows = [], []
     for lab, dd, xs, deg in specs:
@@ -362,21 +362,34 @@ def scale_check(df: pd.DataFrame) -> None:
             l2.append(f"diff. {fnum(dif, 2)} ($p$={fnum(pd_, 3)})")
             rows.append(dict(spec=lab, y=y, minima=b, scored=b2, diff=dif, diff_p=pd_, n=int(res.nobs)))
             if lab.startswith("(3)"):
-                put_number(f"scale diff {y}", dif, ".2")
-                put_number(f"scale p {y}", pd_, ".3")
-                put_number(f"scale minima {y}", b, ".2")
-                put_number(f"scale scored {y}", b2, ".2")
+                put_number(f"scale{tag} diff {y}", dif, ".2")
+                put_number(f"scale{tag} p {y}", pd_, ".3")
+                put_number(f"scale{tag} minima {y}", b, ".2")
+                put_number(f"scale{tag} scored {y}", b2, ".2")
             if lab.startswith("(2)"):
-                put_number(f"scalecubic diff {y}", dif, ".2")
-                put_number(f"scalecubic minima {y}", b, ".2")
-                put_number(f"scalecubic scored {y}", b2, ".2")
+                put_number(f"scalecubic{tag} diff {y}", dif, ".2")
+                put_number(f"scalecubic{tag} minima {y}", b, ".2")
+                put_number(f"scalecubic{tag} p {y}", pd_, ".3")
+                put_number(f"scalecubic{tag} scored {y}", b2, ".2")
         body += [" & ".join(l1) + " \\\\", " & ".join(l2) + " \\\\"]
-    pd.DataFrame(rows).to_csv(TABLES / "scale_check.csv", index=False)
+    return body, rows
+
+
+def scale_check(df: pd.DataFrame) -> None:
+    """Is the regime difference an artefact of project scale? Flexible ln(B) by regime, interacted with ln(N).
+    Panel A: broad SECOP II works universe; Panel B: transport-infrastructure frame (participation sample)."""
+    bodyA, rowsA = _scale_panel(broad_sample(), "")
+    bodyB, rowsB = _scale_panel(prepare_part(df), "frame")
+    body = (["\\multicolumn{4}{l}{\\emph{Panel A. Broad SECOP II works universe}} \\\\"] + bodyA +
+            ["\\addlinespace", "\\multicolumn{4}{l}{\\emph{Panel B. Transport-infrastructure frame}} \\\\"] + bodyB)
+    pd.DataFrame([dict(sample="broad", **r) for r in rowsA] + [dict(sample="frame", **r) for r in rowsB]).to_csv(TABLES / "scale_check.csv", index=False)
     header = "& Rebate & Any addition & Net saving"
-    notes = ("Pooled regressions over the three price-competitive regimes with regime-specific participation slopes: each cell shows the average marginal effect (pp) of doubling bidders in m\'inima cuant\'ia / in the scored regimes, "
-             "averaged over the observed distribution of budgets within each regime, and the test of equality of the two effects. All columns include year, UNSPSC-4 and entity-order fixed effects and $\ln$ duration. "
-             "In (2)--(3) $\ln B$ is centred at the median of the common support and enters as a polynomial (cubic in (2), linear in (3)) with regime-specific coefficients, interacted with $\ln N$ by regime; the slopes are not evaluated at $\ln B=0$. "
-             "Column (3) keeps contracts whose reference budget lies between the 1st percentile of the scored regimes and the 99th percentile of m\'inima cuant\'ia. "
+    notes = ("Pooled regressions over the three price-competitive regimes with regime-specific participation slopes: each cell shows the average marginal effect (pp) of doubling bidders in m\\'inima cuant\\'ia / in the scored regimes, "
+             "averaged over the observed distribution of budgets within each regime, and the test of equality of the two effects. Panel A uses the broad works universe, Panel B the transport-infrastructure frame (participation sample); "
+             "pooling the three regimes under common fixed effects changes the m\\'inima cuant\\'ia coefficients relative to the separate regressions of the main tables. "
+             "All columns include year, UNSPSC-4 and entity-order fixed effects and $\\ln$ duration. "
+             "In (2)--(3) $\\ln B$ is centred at the median of the common support and enters as a polynomial (cubic in (2), linear in (3)) with regime-specific coefficients, interacted with $\\ln N$ by regime; the slopes are not evaluated at $\\ln B=0$. "
+             "Column (3) keeps contracts whose reference budget lies between the 1st percentile of the scored regimes and the 99th percentile of m\\'inima cuant\\'ia. "
              "Standard errors clustered by entity. * $p<0.10$, ** $p<0.05$, *** $p<0.01$.")
     write_table("tab_scale", chr(10).join(body), "", "tab:scale", notes, "lccc", header)
 

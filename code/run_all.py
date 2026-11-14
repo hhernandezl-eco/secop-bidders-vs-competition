@@ -1,4 +1,4 @@
-"""Run the whole pipeline, from the raw SECOP files to the paper tables, figures and number macros.
+"""Run the whole pipeline, from the raw SECOP files to the PDF of the paper.
 
     python code/run_all.py                # full run (skips the slow raw-CSV extraction if Parquet files exist)
     python code/run_all.py --force        # also redo the extraction of the two 8 GB CSV files (~6 min)
@@ -82,6 +82,9 @@ def main() -> None:
                 break
         else:
             print("latexmk not found: compile paper/main.tex manually (pdflatex, bibtex, pdflatex x2).")
+        policy = ROOT / "policy_brief"
+        if shutil.which("latexmk") and (policy / "briefing_juridico.tex").exists():
+            run(["latexmk", "-pdf", "-interaction=nonstopmode", "-halt-on-error", "briefing_juridico.tex"], policy)
 
 
 if __name__ == "__main__":

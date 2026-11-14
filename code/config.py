@@ -65,6 +65,7 @@ ANALYSIS_CSV = PROCESSED / "analysis_contracts.csv"
 SEED = 20260513
 YEAR_MIN, YEAR_MAX = 2018, 2024
 N_BOOT = 500                     # bootstrap replications (clustered)
+N_BOOT_DEC = 1000                # replications of the pairs-cluster bootstrap of the decomposition tables (same in both samples)
 SMMLV = {                        # Colombian monthly minimum wage (COP), used only for scaling checks
     2018: 781_242, 2019: 828_116, 2020: 877_803, 2021: 908_526,
     2022: 1_000_000, 2023: 1_160_000, 2024: 1_300_000,
